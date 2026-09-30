@@ -1,0 +1,90 @@
+-- 05_load_raw.sql
+-- Loads every RAW table from s3://retailpulse-data/raw/<table>/ .
+-- MATCH_BY_COLUMN_NAME lets Snowflake match Parquet columns to table
+-- columns by name (case-insensitive) instead of needing a $1:field
+-- VARIANT-extraction step.
+--
+-- TRUNCATE before each COPY INTO on purpose: process_raw_data.py (and
+-- extract_to_s3.py) always writes a full current snapshot on every
+-- run, under brand-new file names each time — so plain COPY INTO
+-- (which is append-only, and treats any not-previously-seen file
+-- name as new data to load) would silently duplicate every row on
+-- every single pipeline run. Truncating first makes each load a full
+-- replace, matching how this pipeline actually produces data.
+
+USE DATABASE RETAILPULSE;
+USE SCHEMA RAW;
+
+TRUNCATE TABLE RAW.SUPPLIERS;
+
+COPY INTO RAW.SUPPLIERS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/suppliers/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.STORES;
+
+COPY INTO RAW.STORES
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/stores/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.PRODUCTS;
+
+COPY INTO RAW.PRODUCTS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/products/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.CUSTOMERS;
+
+COPY INTO RAW.CUSTOMERS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/customers/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.ORDERS;
+
+COPY INTO RAW.ORDERS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/orders/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.ORDER_ITEMS;
+
+COPY INTO RAW.ORDER_ITEMS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/order_items/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.PAYMENTS;
+
+COPY INTO RAW.PAYMENTS
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/payments/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+TRUNCATE TABLE RAW.INVENTORY;
+
+COPY INTO RAW.INVENTORY
+    FROM @RETAILPULSE.RAW.RETAILPULSE_S3_STAGE/raw/inventory/
+    FILE_FORMAT = (FORMAT_NAME = RETAILPULSE.RAW.PARQUET_FORMAT)
+    PATTERN = '.*[.]parquet'
+    MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
+
+-- Quick check after running the above:
+-- SELECT 'suppliers' AS table_name, COUNT(*) FROM RAW.SUPPLIERS
+-- UNION ALL SELECT 'stores', COUNT(*) FROM RAW.STORES
+-- UNION ALL SELECT 'products', COUNT(*) FROM RAW.PRODUCTS
+-- UNION ALL SELECT 'customers', COUNT(*) FROM RAW.CUSTOMERS
+-- UNION ALL SELECT 'orders', COUNT(*) FROM RAW.ORDERS
+-- UNION ALL SELECT 'order_items', COUNT(*) FROM RAW.ORDER_ITEMS
+-- UNION ALL SELECT 'payments', COUNT(*) FROM RAW.PAYMENTS
+-- UNION ALL SELECT 'inventory', COUNT(*) FROM RAW.INVENTORY;

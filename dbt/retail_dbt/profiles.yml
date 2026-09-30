@@ -1,0 +1,13 @@
+retail_dbt:
+  outputs:
+    dev:
+      account: YSQKFWJ-DRC60368
+      database: RETAILPULSE
+      password: xKkGSar8VtneRWc
+      role: DBT_ROLE
+      schema: BRONZE
+      threads: 4
+      type: snowflake
+      user: SAHLAVALILLATH
+      warehouse: RETAILPULSE_WH
+  target: dev

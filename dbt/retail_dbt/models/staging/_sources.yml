@@ -1,0 +1,37 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: RETAILPULSE
+    schema: BRONZE
+    description: >
+      Output of the PySpark cleaning job (Part 5) — bad rows already
+      quarantined out, duplicates already removed.
+    tables:
+      - name: customers
+      - name: products
+      - name: orders
+      - name: order_items
+
+    # dbt can check whether BRONZE has been reloaded recently and fail
+    # the build if it's gone stale (Part 10 — source freshness), based
+    # on this column and the thresholds below. Tune these to match how
+    # often you actually expect the pipeline to run.
+    loaded_at_field: updated_at
+    freshness:
+      warn_after: { count: 24, period: hour }
+      error_after: { count: 48, period: hour }
+
+  - name: raw
+    database: RETAILPULSE
+    schema: RAW
+    description: >
+      Straight, untouched copy of the S3 raw/ zone. Used for tables that
+      process_raw_data.py doesn't clean yet (stores, suppliers, payments,
+      inventory) — no bad data was deliberately injected into these in
+      the generator, so there's nothing for Spark to catch, but that also
+      means this source has no cleaning/dedup guarantees the way BRONZE
+      does. Move a table here into `bronze` above once it gets its own
+      Spark cleaning step.
+    tables:
+      - name: stores

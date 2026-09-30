@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: stg_customers
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+
+  - name: stg_products
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: price
+        tests:
+          - not_null
+
+  - name: stg_stores
+    columns:
+      - name: store_id
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_orders
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+              # WARN not ERROR: orders were generated against the full
+              # customer universe, but ~185 customer_ids never made it
+              # into stg_customers (quarantined for null email/future
+              # signup, or removed as duplicates). These dangling
+              # references are real and expected — they get resolved
+              # properly once fact_orders maps them to an "Unknown
+              # Customer" dimension row (Part 7/8), not by hiding the
+              # gap here.
+              config:
+                severity: warn
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['placed', 'shipped', 'delivered', 'cancelled', 'returned']
+
+  - name: stg_order_items
+    columns:
+      - name: order_item_id
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+              # WARN not ERROR: same mechanism as stg_orders.customer_id
+              # above — 150 order_ids were dropped as duplicates during
+              # Spark's dedup, so order_items generated against the
+              # pre-dedup order_id universe now dangle for those.
+              config:
+                severity: warn
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+              # WARN not ERROR: 11 products were excluded from
+              # stg_products for having a negative price — an unrelated
+              # quality issue that doesn't make the product_id itself
+              # invalid. order_items referencing one of those 11 IDs
+              # dangle here for that reason, not because the ID was ever
+              # fabricated.
+              config:
+                severity: warn

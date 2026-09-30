@@ -1,0 +1,93 @@
+x-airflow-common: &airflow-common
+  build:
+    context: ..
+    dockerfile: airflow/Dockerfile
+  env_file:
+    - ../.env
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
+    # DAGs actually live at <repo_root>/airflow/dags, but the whole repo
+    # is mounted at /opt/airflow/project below — this points Airflow at
+    # the right subfolder instead of duplicating the mount.
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/airflow/dags
+    DBT_PROFILES_DIR: /opt/airflow/project/dbt/retail_dbt
+    # Everything else comes from ../.env via env_file above. These two
+    # are overridden here on purpose: values in `environment:` win over
+    # the same key from `env_file:`, and PGHOST=localhost / whatever
+    # host port .env uses only make sense from your Windows machine —
+    # inside this container, Postgres is reachable at its docker-compose
+    # SERVICE name and its real internal port.
+    PGHOST: postgres
+    PGPORT: '5432'
+    # If your .env points S3_ENDPOINT_URL at localhost (e.g. MinIO),
+    # uncomment and adjust this the same way — "localhost" inside a
+    # container never means what it means on your host machine:
+    # S3_ENDPOINT_URL: http://minio:9000
+  volumes:
+    - ../:/opt/airflow/project
+    - airflow_logs:/opt/airflow/logs
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+  networks:
+    - retailpulse-net
+
+services:
+  airflow-postgres:
+    image: postgres:16
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - retailpulse-net
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin --password admin \
+          --firstname Admin --lastname User \
+          --role Admin --email admin@example.com || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  airflow_pg_data:
+  airflow_logs:
+
+networks:
+  retailpulse-net:
+    external: true

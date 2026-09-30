@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: dim_date
+    columns:
+      - name: date_key
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_customer
+    columns:
+      - name: customer_sk
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+          # Deliberately NOT unique — this is SCD Type 2, a customer_id
+          # is expected to repeat across multiple historical versions.
+
+  - name: dim_product
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_store
+    columns:
+      - name: store_id
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_orders
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_sk
+        tests:
+          - not_null
+          # Unlike the staging-layer warning on orders.customer_id, this
+          # one is a hard error: every fact_orders row is GUARANTEED a
+          # customer_sk by the coalesce-to-Unknown-Member logic in
+          # fact_orders.sql, so a NULL here would mean that logic broke,
+          # not that the underlying data has a known, accepted gap.
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
+      - name: store_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_store')
+              field: store_id
+
+  - name: fact_order_items
+    columns:
+      - name: order_item_id
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              # This one is a hard error too, deliberately — unlike the
+              # staging-layer version of this same check, every row here
+              # is guaranteed to have a real parent order, because the
+              # inner join in fact_order_items.sql already excluded the
+              # ones that don't.
+              to: ref('fact_orders')
+              field: order_id
+      - name: product_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_id
+      - name: customer_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_sk
